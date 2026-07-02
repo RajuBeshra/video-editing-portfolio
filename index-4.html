@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elemento Jr — AI Video Editor / 3D Motion Graphics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{
+  --bg:#F4F3EF;
+  --bg-panel:#FFFFFF;
+  --glass:rgba(255,255,255,.6);
+  --line:#E1DED5;
+  --ink:#111114;
+  --mid:#5B5A57;
+  --dim:#9A968C;
+  --cyan:#0090A0;
+  --violet:#5B3FCC;
+  --grad:linear-gradient(90deg,#0090A0,#5B3FCC);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg); color:var(--ink); font-family:'Inter',sans-serif;
+  overflow-x:hidden; -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--cyan); color:#fff;}
+h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
+.mono{font-family:'JetBrains Mono',monospace;}
+.grad-text{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent;}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; scroll-behavior:auto !important;}
+}
+
+.bg-grid{
+  position:fixed; inset:0; z-index:0;
+  background-image:
+    linear-gradient(rgba(0,144,160,.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,144,160,.07) 1px, transparent 1px);
+  background-size:56px 56px;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 15%, black 20%, transparent 75%);
+}
+
+/* ---------- nav ---------- */
+.nav{position:fixed; top:0; left:0; right:0; z-index:100; background:rgba(244,243,239,.82); backdrop-filter:blur(14px); border-bottom:1px solid var(--line);}
+.nav-inner{max-width:1440px; margin:0 auto; padding:0 32px; display:flex; align-items:center; justify-content:space-between; height:72px;}
+.brand{display:flex; align-items:center; gap:12px;}
+.brand-mark{
+  height:38px; width:38px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative;
+}
+.brand-mark img{height:56px; width:auto; position:relative; top:3px;}
+.brand-text{font-family:'Space Grotesk'; font-weight:600; font-size:17px; letter-spacing:-.01em; color:var(--ink);}
+.nav-links{display:flex; gap:4px; align-items:center;}
+.nav-links a{color:var(--mid); text-decoration:none; font-size:13.5px; padding:8px 16px; font-weight:500; transition:color .2s;}
+.nav-links a:hover{color:var(--ink);}
+.nav-cta{
+  background:var(--grad); color:#fff; padding:11px 22px; font-size:13px; font-weight:700; text-decoration:none;
+  letter-spacing:.01em; border-radius:10px; transition:transform .2s, box-shadow .2s; box-shadow:0 4px 20px rgba(0,144,160,.18);
+}
+.nav-cta:hover{transform:translateY(-2px); box-shadow:0 6px 28px rgba(0,144,160,.3);}
+@media (max-width:900px){.nav-links{display:none;}}
+
+/* ---------- hero ---------- */
+.hero{min-height:100vh; position:relative; display:flex; align-items:center; padding:140px 32px 60px; max-width:1440px; margin:0 auto;}
+#phoenix-canvas{position:absolute; inset:0; z-index:1; width:100%; height:100%;}
+.hero-veil{
+  position:absolute; inset:0; z-index:2; pointer-events:none;
+  background:linear-gradient(180deg, rgba(244,243,239,.05) 0%, rgba(244,243,239,0) 28%, rgba(244,243,239,.55) 78%, rgba(244,243,239,.96) 100%);
+}
+.viewport-frame{position:absolute; inset:100px 32px 32px; z-index:2; pointer-events:none; border:1px solid rgba(0,144,160,.18); border-radius:24px;}
+.viewport-tag{
+  position:absolute; top:-1px; left:24px; background:var(--bg); padding:4px 12px; font-family:'JetBrains Mono',monospace;
+  font-size:10px; color:var(--cyan); letter-spacing:.08em; border:1px solid rgba(0,144,160,.2); border-top:none; border-radius:0 0 8px 8px;
+}
+.corner{position:absolute; width:18px; height:18px; border-color:rgba(0,144,160,.5);}
+.corner.tl{top:-1px; left:-1px; border-top:1px solid; border-left:1px solid; border-radius:24px 0 0 0;}
+.corner.tr{top:-1px; right:-1px; border-top:1px solid; border-right:1px solid; border-radius:0 24px 0 0;}
+.corner.bl{bottom:-1px; left:-1px; border-bottom:1px solid; border-left:1px solid; border-radius:0 0 0 24px;}
+.corner.br{bottom:-1px; right:-1px; border-bottom:1px solid; border-right:1px solid; border-radius:0 0 24px 0;}
+
+.hero-content{position:relative; z-index:3; max-width:760px; pointer-events:none;}
+.hero-content a, .hero-content button{pointer-events:auto;}
+.trust-pill{
+  display:inline-flex; align-items:center; gap:10px; background:var(--glass); border:1px solid rgba(0,144,160,.3);
+  backdrop-filter:blur(10px); padding:8px 16px; border-radius:100px; font-family:'JetBrains Mono',monospace; font-size:11.5px;
+  font-weight:500; color:var(--cyan); margin-bottom:26px; letter-spacing:.03em;
+}
+.trust-pill .dot{width:7px; height:7px; background:var(--cyan); border-radius:50%; box-shadow:0 0 8px var(--cyan); animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1} 50%{opacity:.3}}
+.hero h1{font-size:clamp(38px,6.2vw,74px); line-height:1.03; font-weight:700; letter-spacing:-.02em; margin-bottom:24px; color:var(--ink);}
+.hero p.lede{font-size:17.5px; line-height:1.65; color:var(--mid); max-width:560px; margin-bottom:36px;}
+.hero p.lede b{color:var(--ink); font-weight:600;}
+.hero-actions{display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-bottom:52px;}
+.btn-primary{
+  background:var(--grad); color:#fff; padding:16px 30px; text-decoration:none; font-weight:700; font-size:14.5px;
+  border-radius:12px; display:inline-flex; align-items:center; gap:10px; transition:transform .2s, box-shadow .2s;
+  box-shadow:0 8px 28px rgba(0,144,160,.2);
+}
+.btn-primary:hover{transform:translateY(-2px); box-shadow:0 12px 34px rgba(0,144,160,.3);}
+.btn-ghost{
+  border:1px solid rgba(17,17,20,.15); background:var(--glass); backdrop-filter:blur(10px); color:var(--ink);
+  padding:15px 28px; text-decoration:none; font-size:14.5px; font-weight:500; border-radius:12px; transition:border-color .2s, background .2s;
+}
+.btn-ghost:hover{border-color:var(--cyan); background:rgba(0,144,160,.06);}
+
+.hero-proof{display:flex; gap:0; flex-wrap:wrap; background:var(--glass); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:16px; padding:22px 26px; max-width:640px;}
+.proof-item{padding-right:32px; margin-right:32px; border-right:1px solid var(--line); display:flex; flex-direction:column; gap:2px;}
+.proof-item:last-child{border-right:none; margin-right:0; padding-right:0;}
+.proof-item .num{font-family:'Space Grotesk'; font-size:22px; font-weight:700; color:var(--ink);}
+.proof-item .lbl{font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.05em;}
+
+/* ---------- trust band ---------- */
+.trust-band{position:relative; z-index:2; border-top:1px solid var(--line); border-bottom:1px solid var(--line); background:rgba(255,255,255,.7); backdrop-filter:blur(10px); padding:32px; overflow:hidden;}
+.trust-track{display:flex; max-width:1440px; margin:0 auto; align-items:center; justify-content:space-around; flex-wrap:wrap; gap:18px;}
+.trust-item{font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--dim); text-align:center;}
+.trust-item b{color:var(--mid); font-weight:600;}
+
+/* ---------- section shell ---------- */
+section{padding:120px 32px; max-width:1440px; margin:0 auto; position:relative; z-index:1;}
+.sec-head{margin-bottom:56px; max-width:680px;}
+.sec-tag{
+  display:inline-flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:11.5px;
+  color:var(--cyan); letter-spacing:.1em; text-transform:uppercase; margin-bottom:16px;
+}
+.sec-tag::before{content:''; width:16px; height:1px; background:var(--cyan);}
+.sec-head h2{font-size:clamp(30px,4.2vw,48px); font-weight:700; letter-spacing:-.01em; margin-bottom:16px; color:var(--ink);}
+.sec-desc{color:var(--mid); font-size:16px; line-height:1.65;}
+
+/* ---------- genre cards ---------- */
+.genre-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:20px;}
+.genre-card{
+  background:var(--bg-panel); border:1px solid var(--line); border-radius:20px; padding:36px 28px;
+  cursor:pointer; transition:border-color .3s, transform .3s, box-shadow .3s; position:relative; overflow:hidden;
+}
+.genre-card::before{content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--grad); transform:scaleX(0); transform-origin:left; transition:transform .3s;}
+.genre-card:hover{transform:translateY(-6px); box-shadow:0 16px 40px rgba(17,17,20,.08);}
+.genre-card:hover::before{transform:scaleX(1);}
+.genre-card .num{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--dim); letter-spacing:.05em; margin-bottom:20px; display:block;}
+.genre-card h3{font-size:22px; font-weight:600; margin-bottom:12px; color:var(--ink);}
+.genre-card p{color:var(--mid); font-size:14px; line-height:1.6; margin-bottom:20px;}
+.genre-card .cta{font-size:13px; font-weight:600; color:var(--cyan); display:flex; align-items:center; gap:6px;}
+
+/* ---------- toolchain ---------- */
+.stack-row{display:flex; flex-wrap:wrap; gap:14px;}
+.stack-chip{
+  display:flex; align-items:center; gap:10px; background:var(--bg-panel); border:1px solid var(--line);
+  padding:14px 20px; border-radius:100px; font-size:14px; font-weight:500; transition:border-color .2s, box-shadow .2s; color:var(--ink);
+}
+.stack-chip:hover{border-color:rgba(0,144,160,.4); box-shadow:0 8px 20px rgba(17,17,20,.06);}
+.stack-chip .dot{width:6px; height:6px; border-radius:50%; background:var(--cyan);}
+
+/* ---------- clips ---------- */
+.clips-toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:32px; flex-wrap:wrap; gap:14px;}
+.filter-row{display:flex; gap:8px; flex-wrap:wrap;}
+.filter-btn{
+  background:var(--bg-panel); border:1px solid var(--line); color:var(--mid); padding:9px 18px;
+  border-radius:100px; font-size:13px; font-weight:500; cursor:pointer; transition:all .2s;
+}
+.filter-btn.active, .filter-btn:hover{border-color:var(--cyan); color:var(--cyan); background:rgba(0,144,160,.06);}
+.owner-btn{
+  background:transparent; border:1px dashed var(--dim); color:var(--dim); padding:9px 16px; border-radius:100px;
+  font-size:12px; font-family:'JetBrains Mono',monospace; cursor:pointer; transition:all .2s;
+}
+.owner-btn:hover{border-color:var(--violet); color:var(--violet);}
+.owner-btn.unlocked{border-style:solid; border-color:var(--violet); color:var(--violet); background:rgba(91,63,204,.06);}
+.add-clip-btn{
+  background:var(--grad); color:#fff; border:none; padding:12px 22px; font-weight:700; border-radius:100px;
+  font-size:13.5px; cursor:pointer; display:flex; align-items:center; gap:8px; transition:transform .2s, box-shadow .2s;
+  box-shadow:0 4px 18px rgba(0,144,160,.2);
+}
+.add-clip-btn:hover{transform:translateY(-2px); box-shadow:0 6px 24px rgba(0,144,160,.3);}
+
+.clips-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:22px;}
+.clip-card{
+  border:1px solid var(--line); background:var(--bg-panel); border-radius:18px; position:relative;
+  overflow:hidden; display:flex; flex-direction:column; transition:transform .3s, box-shadow .3s;
+}
+.clip-card:hover{transform:translateY(-4px); box-shadow:0 16px 40px rgba(17,17,20,.08);}
+.clip-thumb{
+  aspect-ratio:16/9; position:relative; display:flex; align-items:center; justify-content:center; border-bottom:1px solid var(--line);
+  background:
+    radial-gradient(circle at 25% 20%, rgba(0,144,160,.12), transparent 55%),
+    radial-gradient(circle at 85% 85%, rgba(91,63,204,.1), transparent 55%),
+    #EFEDE6;
+}
+.clip-thumb .play{
+  width:56px; height:56px; border:1.5px solid var(--ink); border-radius:50%; display:flex; align-items:center;
+  justify-content:center; color:var(--ink); transition:all .25s; text-decoration:none; font-size:17px;
+}
+.clip-card:hover .play{background:var(--grad); border-color:transparent; color:#fff; transform:scale(1.1);}
+.clip-thumb .genre-badge{
+  position:absolute; top:12px; left:12px; font-family:'JetBrains Mono',monospace; font-size:9.5px;
+  background:rgba(255,255,255,.9); border:1px solid var(--line); color:var(--cyan); padding:5px 10px; border-radius:100px;
+  text-transform:uppercase; letter-spacing:.05em;
+}
+.clip-body{padding:20px 22px 22px; display:flex; flex-direction:column; gap:10px; flex:1;}
+.clip-title{font-family:'Space Grotesk'; font-size:17.5px; font-weight:600; color:var(--ink);}
+.clip-meta{display:flex; gap:14px; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--dim); text-transform:uppercase; letter-spacing:.04em;}
+.clip-desc{font-size:13.5px; color:var(--mid); line-height:1.55; flex:1;}
+.clip-actions{display:flex; gap:8px; margin-top:8px;}
+.clip-link-btn{
+  flex:1; text-align:center; background:transparent; border:1px solid var(--line); color:var(--ink); border-radius:100px;
+  padding:10px; font-size:12.5px; font-weight:600; text-decoration:none; transition:all .2s;
+}
+.clip-link-btn:hover{border-color:var(--cyan); color:var(--cyan);}
+.clip-edit-btn, .clip-del-btn{
+  background:transparent; border:1px solid var(--line); color:var(--dim); width:40px; border-radius:100px;
+  cursor:pointer; font-size:13px; transition:all .2s;
+}
+.clip-edit-btn:hover{border-color:var(--violet); color:var(--violet);}
+.clip-del-btn:hover{border-color:#D64550; color:#D64550;}
+.empty-state{
+  grid-column:1/-1; text-align:center; padding:60px 20px; border:1px dashed var(--line); border-radius:18px;
+  color:var(--dim); font-size:14px;
+}
+
+/* ---------- owner lock notice ---------- */
+.owner-notice{
+  display:flex; align-items:center; gap:10px; background:rgba(91,63,204,.06); border:1px solid rgba(91,63,204,.2);
+  color:var(--violet); padding:12px 18px; border-radius:12px; font-size:12.5px; font-weight:500; margin-bottom:20px;
+}
+
+/* ---------- modal ---------- */
+.modal-overlay{position:fixed; inset:0; background:rgba(17,17,20,.45); backdrop-filter:blur(6px); z-index:300; display:none; align-items:center; justify-content:center; padding:20px;}
+.modal-overlay.active{display:flex;}
+.modal{background:var(--bg-panel); border:1px solid var(--line); border-radius:20px; width:100%; max-width:480px; padding:34px; position:relative; box-shadow:0 30px 80px rgba(17,17,20,.2);}
+.modal h3{font-family:'Space Grotesk'; font-size:23px; margin-bottom:6px; font-weight:600; color:var(--ink);}
+.modal .sub{color:var(--mid); font-size:13.5px; margin-bottom:24px; line-height:1.5;}
+.field{margin-bottom:16px;}
+.field label{display:block; font-size:12px; color:var(--dim); font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-bottom:8px;}
+.field input, .field select, .field textarea{
+  width:100%; background:var(--bg); border:1px solid var(--line); color:var(--ink); padding:13px 15px; border-radius:10px;
+  font-family:'Inter',sans-serif; font-size:14px; outline:none; transition:border-color .2s;
+}
+.field input:focus, .field select:focus, .field textarea:focus{border-color:var(--cyan);}
+.field textarea{resize:vertical; min-height:70px;}
+.modal-actions{display:flex; gap:10px; margin-top:26px;}
+.modal-save{flex:1; background:var(--grad); color:#fff; border:none; padding:14px; font-weight:700; border-radius:100px; font-size:13.5px; cursor:pointer; transition:transform .2s;}
+.modal-save:hover{transform:translateY(-2px);}
+.modal-cancel{background:transparent; border:1px solid var(--line); color:var(--mid); padding:14px 22px; border-radius:100px; font-size:13.5px; cursor:pointer; font-weight:500;}
+.modal-cancel:hover{color:var(--ink);}
+.modal-close{position:absolute; top:22px; right:22px; background:none; border:none; color:var(--dim); font-size:20px; cursor:pointer;}
+.modal-close:hover{color:var(--ink);}
+.field-hint{font-size:11.5px; color:var(--dim); margin-top:6px; line-height:1.5;}
+
+/* ---------- process ---------- */
+.process-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:20px; overflow:hidden;}
+.process-item{background:var(--bg-panel); padding:32px 26px; position:relative;}
+.process-item .step-num{
+  font-family:'Space Grotesk'; font-size:34px; font-weight:700; color:transparent; -webkit-text-stroke:1px rgba(0,144,160,.5); margin-bottom:18px; display:block;
+}
+.process-item h4{font-size:17px; font-weight:600; margin-bottom:10px; color:var(--ink);}
+.process-item p{color:var(--mid); font-size:13px; line-height:1.6;}
+
+/* ---------- mark strip ---------- */
+.mark-strip{display:flex; align-items:center; justify-content:center; padding:64px 32px; border-top:1px solid var(--line); border-bottom:1px solid var(--line); background:rgba(255,255,255,.6); backdrop-filter:blur(10px);}
+.mark-strip img{height:120px; width:auto; opacity:.92;}
+
+/* ---------- social proof ---------- */
+.proof-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:20px;}
+.proof-card{background:var(--bg-panel); border:1px solid var(--line); border-radius:18px; padding:30px 28px;}
+.proof-stars{color:var(--cyan); font-size:14px; margin-bottom:16px; letter-spacing:2px;}
+.proof-quote{font-size:15.5px; line-height:1.6; color:var(--ink); margin-bottom:20px;}
+.proof-who{display:flex; align-items:center; gap:12px;}
+.proof-avatar{width:38px; height:38px; border-radius:10px; background:var(--grad); flex-shrink:0;}
+.proof-name{font-size:13.5px; font-weight:600; color:var(--ink);}
+.proof-role{font-size:12px; color:var(--dim);}
+
+/* ---------- contact ---------- */
+.contact-wrap{
+  border:1px solid var(--line); border-radius:28px; padding:72px 48px; position:relative; overflow:hidden;
+  background:var(--bg-panel); text-align:center;
+}
+.contact-wrap::before{
+  content:''; position:absolute; inset:0; background:radial-gradient(circle at 25% 15%, rgba(0,144,160,.08), transparent 55%), radial-gradient(circle at 80% 90%, rgba(91,63,204,.08), transparent 55%);
+}
+.contact-wrap > *{position:relative; z-index:1;}
+.contact-wrap .sec-tag{justify-content:center; width:100%; display:flex;}
+.contact-wrap h2{font-size:clamp(32px,5.5vw,58px); font-weight:700; letter-spacing:-.01em; margin-bottom:18px; max-width:700px; margin-left:auto; margin-right:auto; color:var(--ink);}
+.contact-wrap p{color:var(--mid); max-width:520px; margin:0 auto 38px; font-size:16px; line-height:1.6;}
+.contact-links{display:flex; gap:16px; flex-wrap:wrap; justify-content:center;}
+.contact-links a{
+  border:1px solid var(--line); color:var(--ink); text-decoration:none; padding:15px 26px; border-radius:100px;
+  font-size:14px; font-weight:500; display:flex; align-items:center; gap:10px; transition:all .2s;
+}
+.contact-links a:hover{border-color:var(--cyan); color:var(--cyan);}
+.contact-links a.primary{background:var(--grad); color:#fff; border-color:transparent; font-weight:700; box-shadow:0 8px 28px rgba(0,144,160,.2);}
+.contact-links a.primary:hover{transform:translateY(-2px); box-shadow:0 12px 34px rgba(0,144,160,.3);}
+
+footer{
+  border-top:1px solid var(--line); padding:32px; text-align:center; font-size:12.5px; color:var(--dim);
+  display:flex; justify-content:space-between; max-width:1440px; margin:0 auto; flex-wrap:wrap; gap:10px; position:relative; z-index:1;
+}
+footer a{color:var(--dim); text-decoration:none; font-family:'JetBrains Mono',monospace; font-size:11px;}
+footer a:hover{color:var(--violet);}
+
+.toast{
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(20px); z-index:400;
+  background:var(--ink); color:#fff; padding:14px 24px; border-radius:100px; font-weight:600;
+  font-size:13px; opacity:0; transition:all .3s; pointer-events:none;
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+.reveal{opacity:0; transform:translateY(24px); transition:opacity .7s ease, transform .7s ease;}
+.reveal.in{opacity:1; transform:translateY(0);}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="brand">
+      <div class="brand-mark"><img src="assets/elemento-mark.png" alt="Elemento Jr phoenix mark"></div>
+      <span class="brand-text">Elemento Jr</span>
+    </div>
+    <div class="nav-links">
+      <a href="#genres">Services</a>
+      <a href="#clips">Work</a>
+      <a href="#process">Pipeline</a>
+      <a href="#proof">Reviews</a>
+      <a href="#contact">Contact</a>
+    </div>
+    <a href="#contact" class="nav-cta">Get a quote</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <canvas id="phoenix-canvas"></canvas>
+  <div class="hero-veil"></div>
+  <div class="viewport-frame">
+    <span class="viewport-tag">VIEWPORT_01 // PHOENIX.RENDER</span>
+    <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+  </div>
+  <div class="hero-content">
+    <div class="trust-pill"><span class="dot"></span>Currently booking — Europe &amp; US clients</div>
+    <h1>Motion that renders<br>your <span class="grad-text">idea</span> in 3D.</h1>
+    <p class="lede">I'm <b>Raju</b>, the editor behind <b>Elemento Jr</b>. I build explainer, commercial, and short-form video using next-gen generative tools — <b>Veo 3, Kling, NanoBanana 2</b> — then finish every frame by hand in <b>Premiere Pro</b> and <b>CapCut Pro</b>.</p>
+    <div class="hero-actions">
+      <a href="#contact" class="btn-primary">Get a free quote →</a>
+      <a href="#clips" class="btn-ghost">Watch the reel</a>
+    </div>
+    <div class="hero-proof">
+      <div class="proof-item"><span class="num">2+ yrs</span><span class="lbl">Editing experience</span></div>
+      <div class="proof-item"><span class="num">4</span><span class="lbl">Content specialties</span></div>
+      <div class="proof-item"><span class="num">48hr</span><span class="lbl">First-draft turnaround</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="trust-band">
+  <div class="trust-track">
+    <span class="trust-item">Generated in <b>Veo 3</b></span>
+    <span class="trust-item">Animated with <b>NanoBanana 2</b></span>
+    <span class="trust-item">Motion by <b>Kling 2.6 / 3.0</b></span>
+    <span class="trust-item">Finished in <b>Premiere Pro</b></span>
+    <span class="trust-item">Shorts cut in <b>CapCut Pro</b></span>
+  </div>
+</div>
+
+<!-- SERVICES -->
+<section id="genres">
+  <div class="sec-head">
+    <div class="sec-tag">What I make</div>
+    <h2>Four formats, rendered right.</h2>
+    <p class="sec-desc">I don't spread thin across every video type — I go deep on the four that actually convert, explain, and get watched to the end.</p>
+  </div>
+  <div class="genre-grid">
+    <div class="genre-card reveal" onclick="scrollToClips('talking-head')">
+      <span class="num mono">01</span>
+      <h3>Talking Head Explainers</h3>
+      <p>Presenter-led or AI-voiced videos that explain your product or idea clearly — scripted for retention, not just information.</p>
+      <span class="cta">See examples →</span>
+    </div>
+    <div class="genre-card reveal" onclick="scrollToClips('2d-animation')">
+      <span class="num mono">02</span>
+      <h3>2D Animated Explainers</h3>
+      <p>Wojak, NPC, and Robohorse-style narrative animation — great for finance, psychology, and story-driven brand content.</p>
+      <span class="cta">See examples →</span>
+    </div>
+    <div class="genre-card reveal" onclick="scrollToClips('cinematic')">
+      <span class="num mono">03</span>
+      <h3>Cinematic Commercials</h3>
+      <p>Full AI-generated shot sequences for product and brand films — luxury, aviation, lifestyle. Looks like a studio shoot.</p>
+      <span class="cta">See examples →</span>
+    </div>
+    <div class="genre-card reveal" onclick="scrollToClips('shorts')">
+      <span class="num mono">04</span>
+      <h3>Text Animation Shorts</h3>
+      <p>High-retention YouTube Shorts and Reels with kinetic captions and meme-perfect timing — built to get watched, not skipped.</p>
+      <span class="cta">See examples →</span>
+    </div>
+  </div>
+</section>
+
+<!-- TOOLCHAIN -->
+<section id="stack">
+  <div class="sec-head">
+    <div class="sec-tag">The stack behind it</div>
+    <h2>Modern tools, edited by hand.</h2>
+    <p class="sec-desc">AI does the generation. I do the direction, pacing, and finishing — that's the part that actually makes it feel professional.</p>
+  </div>
+  <div class="stack-row">
+    <div class="stack-chip"><span class="dot"></span>Google Flow (Veo 3)</div>
+    <div class="stack-chip"><span class="dot"></span>Kling 2.6 / 3.0</div>
+    <div class="stack-chip"><span class="dot"></span>Omini Flash</div>
+    <div class="stack-chip"><span class="dot"></span>NanoBanana 2 / Pro</div>
+    <div class="stack-chip"><span class="dot"></span>Adobe Premiere Pro</div>
+    <div class="stack-chip"><span class="dot"></span>CapCut Pro</div>
+  </div>
+</section>
+
+<div class="mark-strip"><img src="assets/elemento-mark.png" alt="Elemento Jr phoenix mark"></div>
+
+<!-- CLIPS -->
+<section id="clips">
+  <div class="sec-head">
+    <div class="sec-tag">Recent work</div>
+    <h2>Clips &amp; project links</h2>
+    <p class="sec-desc">Every card opens the actual Google Drive file. This list is view-only for visitors — only I can add or edit entries.</p>
+  </div>
+
+  <div class="clips-toolbar">
+    <div class="filter-row" id="filterRow">
+      <button class="filter-btn active" data-filter="all">All work</button>
+      <button class="filter-btn" data-filter="talking-head">Talking Head</button>
+      <button class="filter-btn" data-filter="2d-animation">2D Animation</button>
+      <button class="filter-btn" data-filter="cinematic">Cinematic</button>
+      <button class="filter-btn" data-filter="shorts">Shorts</button>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button class="owner-btn" id="ownerToggle" onclick="toggleOwnerMode()">🔒 Owner login</button>
+      <button class="add-clip-btn" id="addClipBtn" onclick="openModal()" style="display:none;">+ Add clip</button>
+    </div>
+  </div>
+
+  <div class="owner-notice" id="ownerNotice" style="display:none;">
+    ✓ Owner mode active — you can add, edit, and delete clips. This unlocks only in your own browser session and resets when you leave the page.
+  </div>
+
+  <div class="clips-grid" id="clipsGrid"></div>
+</section>
+
+<!-- PROCESS -->
+<section id="process">
+  <div class="sec-head">
+    <div class="sec-tag">How we'd work together</div>
+    <h2>From your brief to your final file.</h2>
+    <p class="sec-desc">A clear five-step render pipeline — you always know what's happening and when you'll have footage in hand.</p>
+  </div>
+  <div class="process-grid">
+    <div class="process-item reveal"><span class="step-num">01</span><h4>Brief &amp; script</h4><p>We lock your goal, tone, and references before anything gets generated.</p></div>
+    <div class="process-item reveal"><span class="step-num">02</span><h4>Concept frames</h4><p>Key stills generated to confirm the look before full video generation starts.</p></div>
+    <div class="process-item reveal"><span class="step-num">03</span><h4>Scene generation</h4><p>Each shot animated and reviewed — you can request changes at this stage.</p></div>
+    <div class="process-item reveal"><span class="step-num">04</span><h4>Edit &amp; grade</h4><p>Full assembly, sound design, captions, and colour grade in Premiere or CapCut.</p></div>
+    <div class="process-item reveal"><span class="step-num">05</span><h4>Delivery</h4><p>Final export in your platform's spec, plus source files if you need them.</p></div>
+  </div>
+</section>
+
+<!-- SOCIAL PROOF -->
+<section id="proof">
+  <div class="sec-head">
+    <div class="sec-tag">Client feedback</div>
+    <h2>What it's like to work with me.</h2>
+    <p class="sec-desc">Swap these in with your real client quotes as they come in — the layout is ready to go.</p>
+  </div>
+  <div class="proof-grid">
+    <div class="proof-card reveal">
+      <div class="proof-stars">★★★★★</div>
+      <p class="proof-quote">"Add your first client testimonial here — a specific result works best, like a delivery time or a metric that improved."</p>
+      <div class="proof-who"><div class="proof-avatar"></div><div><div class="proof-name">Client name</div><div class="proof-role">Role, Company</div></div></div>
+    </div>
+    <div class="proof-card reveal">
+      <div class="proof-stars">★★★★★</div>
+      <p class="proof-quote">"Second testimonial slot — great for a comment on communication, revisions, or turnaround speed."</p>
+      <div class="proof-who"><div class="proof-avatar"></div><div><div class="proof-name">Client name</div><div class="proof-role">Role, Company</div></div></div>
+    </div>
+    <div class="proof-card reveal">
+      <div class="proof-stars">★★★★★</div>
+      <p class="proof-quote">"Third slot — a quote about the final creative quality lands well here, closing the trust loop before contact."</p>
+      <div class="proof-who"><div class="proof-avatar"></div><div><div class="proof-name">Client name</div><div class="proof-role">Role, Company</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact">
+  <div class="contact-wrap reveal">
+    <div class="sec-tag">Let's talk</div>
+    <h2>Have a video that needs to exist? Let's render it.</h2>
+    <p>Open for freelance work with international clients — talking head explainers, 2D animation, cinematic commercials, and short-form. Paid in USD / EUR via Payoneer or Wise.</p>
+    <div class="contact-links">
+      <a href="mailto:hello@example.com" class="primary">Get a free quote →</a>
+      <a href="#" onclick="return false;">💬 Discord — raju#0000</a>
+      <a href="#" onclick="return false;">▶ YouTube — Lord Wojak</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>© 2026 Elemento Jr — AI Video Editor</span>
+  <span>Kolkata–Rourkela, India &nbsp;·&nbsp; <a href="#" onclick="toggleOwnerMode(); return false;">Owner login</a></span>
+</footer>
+
+<!-- OWNER LOGIN MODAL -->
+<div class="modal-overlay" id="loginOverlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeLogin()">✕</button>
+    <h3>Owner login</h3>
+    <p class="sub">Enter your edit passcode to add, edit, or remove clips. Visitors to your live site won't see this control being used.</p>
+    <div class="field"><label>Passcode</label><input type="password" id="ownerPass" placeholder="••••••••" onkeydown="if(event.key==='Enter') attemptLogin()"></div>
+    <div class="field-hint" style="margin-bottom:8px;">Default passcode is <b>elemento2026</b> — change it in the script section of this file (search for OWNER_PASSCODE) before publishing.</div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeLogin()">Cancel</button>
+      <button class="modal-save" onclick="attemptLogin()">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT CLIP MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h3 id="modalTitle">Add a clip</h3>
+    <p class="sub">Paste your Google Drive share link — set it to "Anyone with the link" so it opens for viewers.</p>
+    <div class="field"><label>Title</label><input type="text" id="fTitle" placeholder="e.g. Bombardier Global 6000 — Commercial"></div>
+    <div class="field"><label>Genre</label>
+      <select id="fGenre">
+        <option value="talking-head">Talking Head Explainer</option>
+        <option value="2d-animation">2D Animation Explainer</option>
+        <option value="cinematic">Cinematic Commercial</option>
+        <option value="shorts">Text Animation Shorts</option>
+      </select>
+    </div>
+    <div class="field"><label>Google Drive link</label><input type="url" id="fLink" placeholder="https://drive.google.com/file/d/...">
+      <div class="field-hint">Right-click the file in Drive → Share → General access → "Anyone with the link."</div>
+    </div>
+    <div class="field"><label>Short description</label><textarea id="fDesc" placeholder="Client, tools used, what it demonstrates..."></textarea></div>
+    <div class="field"><label>Duration (optional)</label><input type="text" id="fDur" placeholder="e.g. 0:45"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+      <button class="modal-save" onclick="saveClip()">Save clip</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========== OWNER LOCK ===========
+   This is a simple client-side gate: it hides the add/edit/delete UI from
+   visitors by default. It is NOT real security — anyone who reads the page
+   source could find the passcode. For genuine protection you'd need a real
+   backend with authentication. This is meant to stop casual/accidental
+   editing by visitors, not a determined attacker.
+*/
+const OWNER_PASSCODE = "elemento2026";
+let ownerMode = false;
+
+function toggleOwnerMode(){
+  if(ownerMode){
+    ownerMode = false;
+    applyOwnerUI();
+    showToast('Owner mode turned off.');
+  } else {
+    document.getElementById('loginOverlay').classList.add('active');
+    document.getElementById('ownerPass').focus();
+  }
+}
+function closeLogin(){
+  document.getElementById('loginOverlay').classList.remove('active');
+  document.getElementById('ownerPass').value = '';
+}
+function attemptLogin(){
+  const val = document.getElementById('ownerPass').value;
+  if(val === OWNER_PASSCODE){
+    ownerMode = true;
+    applyOwnerUI();
+    closeLogin();
+    showToast('Owner mode unlocked.');
+  } else {
+    showToast('Incorrect passcode.');
+  }
+}
+function applyOwnerUI(){
+  document.getElementById('addClipBtn').style.display = ownerMode ? 'flex' : 'none';
+  document.getElementById('ownerNotice').style.display = ownerMode ? 'flex' : 'none';
+  const btn = document.getElementById('ownerToggle');
+  btn.textContent = ownerMode ? '🔓 Owner mode (click to exit)' : '🔒 Owner login';
+  btn.classList.toggle('unlocked', ownerMode);
+  renderClips();
+}
+document.getElementById('loginOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'loginOverlay') closeLogin(); });
+
+/* ================= THREE.JS — 3D WIREFRAME PHOENIX (light-scene / hologram) ================= */
+(function(){
+  const canvas = document.getElementById('phoenix-canvas');
+  const heroEl = document.querySelector('.hero');
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let W = heroEl.clientWidth, H = heroEl.clientHeight;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, W/H, 0.1, 100);
+  camera.position.set(0, 0.3, 9);
+
+  const renderer = new THREE.WebGLRenderer({canvas, alpha:true, antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(W,H);
+
+  const ambient = new THREE.AmbientLight(0xffffff, 1.3);
+  scene.add(ambient);
+  const key = new THREE.DirectionalLight(0xffffff, 0.9);
+  key.position.set(4, 5, 6);
+  scene.add(key);
+  const rimCyan = new THREE.DirectionalLight(0x0090a0, 1.3);
+  rimCyan.position.set(-6, 2, -4);
+  scene.add(rimCyan);
+  const rimViolet = new THREE.DirectionalLight(0x5b3fcc, 1.0);
+  rimViolet.position.set(5, -3, -3);
+  scene.add(rimViolet);
+
+  const phoenixGroup = new THREE.Group();
+  scene.add(phoenixGroup);
+
+  // light-scene material: pale glass body with dark ink-line edges so it reads on a light background
+  const solidMat = new THREE.MeshStandardMaterial({
+    color: 0xf7f6f2, metalness: 0.15, roughness: 0.35, transparent:true, opacity:0.88,
+    emissive:0xeaf7f8, emissiveIntensity:0.25
+  });
+  const wireMatCyan = new THREE.LineBasicMaterial({color:0x0090a0, transparent:true, opacity:0.8});
+  const wireMatViolet = new THREE.LineBasicMaterial({color:0x5b3fcc, transparent:true, opacity:0.6});
+
+  function buildWing(mirror){
+    const wing = new THREE.Group();
+    const featherCount = 10;
+    for(let i=0;i<featherCount;i++){
+      const t = i/(featherCount-1);
+      const len = 2.5 + t*2.2;
+      const width = 0.32 - t*0.15;
+      const shape = new THREE.Shape();
+      shape.moveTo(0,0);
+      shape.lineTo(width*0.5, len*0.55);
+      shape.lineTo(width*0.18, len);
+      shape.lineTo(-width*0.18, len);
+      shape.lineTo(-width*0.5, len*0.55);
+      shape.lineTo(0,0);
+      const geo = new THREE.ExtrudeGeometry(shape, {depth:0.045, bevelEnabled:true, bevelThickness:0.01, bevelSize:0.01, bevelSegments:1});
+      const mesh = new THREE.Mesh(geo, solidMat);
+
+      const edges = new THREE.EdgesGeometry(geo);
+      const line = new THREE.LineSegments(edges, i % 2 === 0 ? wireMatCyan : wireMatViolet);
+      mesh.add(line);
+
+      const angle = (-0.15 + t*0.95) * (mirror ? -1 : 1);
+      mesh.position.set(mirror ? -0.15 - t*0.25 : 0.15 + t*0.25, 0.1 - t*0.05, -t*0.35);
+      mesh.rotation.z = angle;
+      mesh.rotation.y = mirror ? -0.25 : 0.25;
+      wing.add(mesh);
+    }
+    return wing;
+  }
+
+  const wingL = buildWing(true);
+  wingL.position.set(-0.55, 0.6, 0);
+  phoenixGroup.add(wingL);
+  const wingR = buildWing(false);
+  wingR.position.set(0.55, 0.6, 0);
+  phoenixGroup.add(wingR);
+
+  function buildBody(){
+    const body = new THREE.Group();
+    const headShape = new THREE.Shape();
+    headShape.moveTo(0,0);
+    headShape.lineTo(0.22,0.32);
+    headShape.lineTo(0.05,0.55);
+    headShape.lineTo(-0.28,0.4);
+    headShape.lineTo(-0.1,0.1);
+    headShape.lineTo(0,0);
+    const headGeo = new THREE.ExtrudeGeometry(headShape, {depth:0.05, bevelEnabled:true, bevelThickness:0.01, bevelSize:0.01, bevelSegments:1});
+    const head = new THREE.Mesh(headGeo, solidMat);
+    head.position.set(0, 1.5, 0.1);
+    head.rotation.z = -0.3;
+    const headEdges = new THREE.LineSegments(new THREE.EdgesGeometry(headGeo), wireMatCyan);
+    head.add(headEdges);
+    body.add(head);
+
+    const tailCount = 5;
+    for(let i=0;i<tailCount;i++){
+      const t = i/(tailCount-1);
+      const len = 2.1 + Math.random()*0.8;
+      const shape = new THREE.Shape();
+      const w = 0.14;
+      shape.moveTo(0,0);
+      shape.lineTo(w,-len*0.5);
+      shape.lineTo(w*0.4,-len);
+      shape.lineTo(-w*0.4,-len);
+      shape.lineTo(-w,-len*0.5);
+      shape.lineTo(0,0);
+      const geo = new THREE.ExtrudeGeometry(shape, {depth:0.03, bevelEnabled:false});
+      const mesh = new THREE.Mesh(geo, solidMat);
+      mesh.position.set((t-0.5)*0.9, 0.4, 0.02*i);
+      mesh.rotation.z = (t-0.5)*0.5;
+      const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo), i % 2 === 0 ? wireMatViolet : wireMatCyan);
+      mesh.add(e);
+      body.add(mesh);
+    }
+    return body;
+  }
+  const body = buildBody();
+  phoenixGroup.add(body);
+
+  phoenixGroup.scale.set(0.76,0.76,0.76);
+  phoenixGroup.position.set(1.7, 1.0, -1.5);
+  phoenixGroup.rotation.y = -0.25;
+
+  // floating schematic data-points
+  const ptGeo = new THREE.BufferGeometry();
+  const ptCount = 80;
+  const positions = new Float32Array(ptCount*3);
+  const ptColors = new Float32Array(ptCount*3);
+  const c1 = new THREE.Color(0x0090a0), c2 = new THREE.Color(0x5b3fcc);
+  for(let i=0;i<ptCount;i++){
+    positions[i*3] = (Math.random()-0.5)*16;
+    positions[i*3+1] = (Math.random()-0.5)*9;
+    positions[i*3+2] = (Math.random()-0.5)*11 - 2;
+    const c = Math.random() > 0.5 ? c1 : c2;
+    ptColors[i*3]=c.r; ptColors[i*3+1]=c.g; ptColors[i*3+2]=c.b;
+  }
+  ptGeo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  ptGeo.setAttribute('color', new THREE.BufferAttribute(ptColors,3));
+  const ptMat = new THREE.PointsMaterial({size:0.03, transparent:true, opacity:0.5, vertexColors:true});
+  const points = new THREE.Points(ptGeo, ptMat);
+  scene.add(points);
+
+  // HUD scan rings
+  const ringGeo = new THREE.RingGeometry(3.6, 3.62, 64);
+  const ringMat = new THREE.MeshBasicMaterial({color:0x0090a0, transparent:true, opacity:0.25, side:THREE.DoubleSide});
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.position.set(1.7, 1.0, -3);
+  scene.add(ring);
+  const ring2Geo = new THREE.RingGeometry(4.3, 4.32, 64);
+  const ring2 = new THREE.Mesh(ring2Geo, new THREE.MeshBasicMaterial({color:0x5b3fcc, transparent:true, opacity:0.18, side:THREE.DoubleSide}));
+  ring2.position.set(1.7, 1.0, -3);
+  scene.add(ring2);
+
+  let mouseX = 0, mouseY = 0, targetRotY = -0.25, targetRotX = 0;
+  window.addEventListener('mousemove', (e)=>{
+    mouseX = (e.clientX / window.innerWidth - 0.5);
+    mouseY = (e.clientY / window.innerHeight - 0.5);
+  });
+  window.addEventListener('touchmove', (e)=>{
+    if(e.touches && e.touches[0]){
+      mouseX = (e.touches[0].clientX / window.innerWidth - 0.5);
+      mouseY = (e.touches[0].clientY / window.innerHeight - 0.5);
+    }
+  }, {passive:true});
+
+  let clock = new THREE.Clock();
+  function animate(){
+    requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+
+    if(!reduced){
+      targetRotY = -0.25 + mouseX*0.55;
+      targetRotX = mouseY*0.28;
+      phoenixGroup.rotation.y += (targetRotY - phoenixGroup.rotation.y)*0.045;
+      phoenixGroup.rotation.x += (targetRotX - phoenixGroup.rotation.x)*0.045;
+      phoenixGroup.position.y = 1.0 + Math.sin(t*0.4)*0.12;
+      phoenixGroup.position.x = 1.7 + mouseX*0.7;
+
+      rimCyan.intensity = 1.1 + Math.sin(t*1.3)*0.3;
+      rimViolet.intensity = 0.8 + Math.cos(t*1.1)*0.25;
+
+      ring.rotation.z = t*0.05;
+      ring2.rotation.z = -t*0.03;
+      ring.position.x = 1.7 + mouseX*0.7;
+      ring2.position.x = 1.7 + mouseX*0.7;
+
+      points.rotation.y = t*0.015 + mouseX*0.1;
+      const ppos = points.geometry.attributes.position.array;
+      for(let i=0;i<ptCount;i++){
+        ppos[i*3+1] += 0.0022;
+        if(ppos[i*3+1] > 4.5) ppos[i*3+1] = -4.5;
+      }
+      points.geometry.attributes.position.needsUpdate = true;
+    }
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', ()=>{
+    W = heroEl.clientWidth; H = heroEl.clientHeight;
+    camera.aspect = W/H; camera.updateProjectionMatrix();
+    renderer.setSize(W,H);
+  });
+})();
+
+/* scroll reveal */
+(function(){
+  const els = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  },{threshold:0.15});
+  els.forEach(el=>io.observe(el));
+})();
+
+/* ================= CLIP DATA ================= */
+const GENRE_LABELS = {'talking-head':'Talking Head','2d-animation':'2D Animation','cinematic':'Cinematic','shorts':'Shorts'};
+
+let clips = [
+  {id:cryptoId(), title:'Income Tax Explainer — NPC Style', genre:'2d-animation', link:'https://drive.google.com/', desc:'NanoBanana 2 character design + full 2D animated explainer walkthrough of income tax basics, meme-face style.', duration:'2:10'},
+  {id:cryptoId(), title:'Bombardier Global 6000 — Cinematic Promo', genre:'cinematic', link:'https://drive.google.com/', desc:'12-scene private jet commercial. NanoBanana 2 stills → Kling 2.6/3.0 motion → Premiere Pro grade, for client CLFD.', duration:'1:30'},
+  {id:cryptoId(), title:'Skeleton Sheriff — Bodycam Reaction', genre:'2d-animation', link:'https://drive.google.com/', desc:'Lord Wojak channel test assignment — police bodycam reaction series, Veo 3 + NanoBanana 2 prompt-built.', duration:'0:52'},
+  {id:cryptoId(), title:'UGC Talking-Head Ad — Vertical', genre:'talking-head', link:'https://drive.google.com/', desc:'Veo 3 generated presenter-style ad, 9:16, built from an ad-research workflow brief.', duration:'0:34'},
+  {id:cryptoId(), title:'"The Evidence Folder" — Psychology Short', genre:'shorts', link:'https://drive.google.com/', desc:'Fast-cut, anime/meme-heavy short in the BigBoxSWE style — beat-synced kinetic captions in CapCut Pro.', duration:'0:58'},
+  {id:cryptoId(), title:'AI Tools Review — Kareem Rahma Format', genre:'talking-head', link:'https://drive.google.com/', desc:'Vertical reel replicating a viral psychology/interview reel format, edited for retention.', duration:'0:41'}
+];
+
+let activeFilter = 'all';
+let editingId = null;
+
+function cryptoId(){ return 'c_' + Math.random().toString(36).slice(2,10); }
+
+function renderClips(){
+  const grid = document.getElementById('clipsGrid');
+  const list = activeFilter === 'all' ? clips : clips.filter(c=>c.genre===activeFilter);
+  if(list.length === 0){
+    grid.innerHTML = `<div class="empty-state">No clips in this lane yet.${ownerMode ? ' Click "+ Add clip" to drop one in.' : ''}</div>`;
+    return;
+  }
+  grid.innerHTML = list.map(c => `
+    <div class="clip-card reveal in" data-id="${c.id}">
+      <div class="clip-thumb">
+        <span class="genre-badge">${GENRE_LABELS[c.genre] || c.genre}</span>
+        <a href="${escapeAttr(c.link)}" target="_blank" rel="noopener noreferrer" class="play" aria-label="Play ${escapeAttr(c.title)}">▶</a>
+      </div>
+      <div class="clip-body">
+        <div class="clip-title">${escapeHtml(c.title)}</div>
+        <div class="clip-meta"><span>${GENRE_LABELS[c.genre]||''}</span>${c.duration ? `<span>${escapeHtml(c.duration)}</span>` : ''}</div>
+        <div class="clip-desc">${escapeHtml(c.desc||'')}</div>
+        <div class="clip-actions">
+          <a href="${escapeAttr(c.link)}" target="_blank" rel="noopener noreferrer" class="clip-link-btn">Open in Drive ↗</a>
+          ${ownerMode ? `
+          <button class="clip-edit-btn" onclick="editClip('${c.id}')" aria-label="Edit clip">✎</button>
+          <button class="clip-del-btn" onclick="deleteClip('${c.id}')" aria-label="Delete clip">✕</button>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str){ return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function escapeAttr(str){ return escapeHtml(str || '#'); }
+
+document.getElementById('filterRow').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.filter-btn');
+  if(!btn) return;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  activeFilter = btn.dataset.filter;
+  renderClips();
+});
+
+function scrollToClips(genre){
+  activeFilter = genre;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active', b.dataset.filter===genre));
+  renderClips();
+  document.getElementById('clips').scrollIntoView({behavior:'smooth'});
+}
+
+function openModal(){
+  if(!ownerMode){ showToast('Owner login required to add clips.'); return; }
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'Add a clip';
+  document.getElementById('fTitle').value = '';
+  document.getElementById('fGenre').value = 'talking-head';
+  document.getElementById('fLink').value = '';
+  document.getElementById('fDesc').value = '';
+  document.getElementById('fDur').value = '';
+  document.getElementById('modalOverlay').classList.add('active');
+  document.getElementById('fTitle').focus();
+}
+function editClip(id){
+  if(!ownerMode) return;
+  const c = clips.find(x=>x.id===id);
+  if(!c) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Edit clip';
+  document.getElementById('fTitle').value = c.title;
+  document.getElementById('fGenre').value = c.genre;
+  document.getElementById('fLink').value = c.link;
+  document.getElementById('fDesc').value = c.desc || '';
+  document.getElementById('fDur').value = c.duration || '';
+  document.getElementById('modalOverlay').classList.add('active');
+  document.getElementById('fTitle').focus();
+}
+function closeModal(){ document.getElementById('modalOverlay').classList.remove('active'); }
+document.getElementById('modalOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'modalOverlay') closeModal(); });
+document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ closeModal(); closeLogin(); } });
+
+function saveClip(){
+  if(!ownerMode){ showToast('Owner login required.'); return; }
+  const title = document.getElementById('fTitle').value.trim();
+  const genre = document.getElementById('fGenre').value;
+  const link = document.getElementById('fLink').value.trim();
+  const desc = document.getElementById('fDesc').value.trim();
+  const duration = document.getElementById('fDur').value.trim();
+
+  if(!title || !link){ showToast('Add a title and a Drive link before saving.'); return; }
+  if(!/^https?:\/\//i.test(link)){ showToast('Link should start with http:// or https://'); return; }
+
+  if(editingId){
+    const c = clips.find(x=>x.id===editingId);
+    Object.assign(c, {title, genre, link, desc, duration});
+    showToast('Clip updated.');
+  } else {
+    clips.unshift({id:cryptoId(), title, genre, link, desc, duration});
+    showToast('Clip added.');
+  }
+  closeModal();
+  renderClips();
+}
+
+function deleteClip(id){
+  if(!ownerMode) return;
+  clips = clips.filter(c=>c.id!==id);
+  renderClips();
+  showToast('Clip removed.');
+}
+
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+renderClips();
+</script>
+</body>
+</html>

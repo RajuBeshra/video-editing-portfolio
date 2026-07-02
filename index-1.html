@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAJU — AI Video Editor / Cinematic &amp; Generative Post</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{
+  --bg:#0A0A0D;
+  --bg-raised:#111114;
+  --line:#232327;
+  --off:#F0EEE6;
+  --mid:#8A8A90;
+  --dim:#54545A;
+  --signal:#FF5A1F;
+  --phos:#39FF88;
+  --radius:2px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg);
+  color:var(--off);
+  font-family:'Inter',sans-serif;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--signal);color:#0A0A0D;}
+h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
+.mono{font-family:'JetBrains Mono',monospace;}
+
+/* reduced motion */
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; scroll-behavior:auto !important;}
+}
+
+/* ---------- scanline / grain ---------- */
+.grain{
+  position:fixed; inset:0; pointer-events:none; z-index:200;
+  opacity:.035; mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- topbar / timeline nav ---------- */
+.timeline-nav{
+  position:fixed; top:0; left:0; right:0; z-index:100;
+  background:rgba(10,10,13,.88); backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.timeline-nav-inner{
+  max-width:1400px; margin:0 auto; padding:0 32px;
+  display:flex; align-items:center; justify-content:space-between; height:64px;
+}
+.brand{display:flex; align-items:center; gap:10px; font-weight:600; letter-spacing:.02em; font-size:15px;}
+.brand-dot{width:8px;height:8px;background:var(--phos); border-radius:50%; box-shadow:0 0 8px var(--phos); animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1} 50%{opacity:.3}}
+.nav-links{display:flex; gap:2px; align-items:center;}
+.nav-links a{
+  color:var(--mid); text-decoration:none; font-size:12.5px; padding:8px 16px;
+  font-family:'JetBrains Mono',monospace; letter-spacing:.03em; transition:color .2s;
+  position:relative;
+}
+.nav-links a:hover, .nav-links a:focus-visible{color:var(--off);}
+.nav-links a::after{
+  content:''; position:absolute; bottom:2px; left:16px; right:16px; height:1px;
+  background:var(--signal); transform:scaleX(0); transform-origin:left; transition:transform .25s;
+}
+.nav-links a:hover::after{transform:scaleX(1);}
+.nav-cta{
+  background:var(--signal); color:#0A0A0D; padding:9px 18px; font-size:12px; font-weight:600;
+  font-family:'JetBrains Mono',monospace; text-decoration:none; letter-spacing:.02em;
+  transition:background .2s, transform .2s;
+}
+.nav-cta:hover{background:#ff7a45; transform:translateY(-1px);}
+@media (max-width:900px){.nav-links{display:none;}}
+
+/* timecode ruler under nav */
+.ruler{
+  height:22px; border-bottom:1px solid var(--line); position:relative;
+  background:repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 120px);
+  display:flex; align-items:center; overflow:hidden;
+}
+.ruler-track{display:flex; gap:120px; padding-left:12px; white-space:nowrap; animation:scrollTC 40s linear infinite;}
+.ruler span{font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--dim); letter-spacing:.05em;}
+@keyframes scrollTC{0%{transform:translateX(0)} 100%{transform:translateX(-1200px)}}
+
+/* ---------- hero ---------- */
+.hero{
+  min-height:100vh; position:relative; display:flex; align-items:center;
+  padding:110px 32px 80px; max-width:1400px; margin:0 auto;
+}
+#hero-canvas{position:absolute; inset:0; z-index:0; opacity:.9;}
+.hero-content{position:relative; z-index:2; max-width:800px;}
+.eyebrow{
+  font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--signal);
+  letter-spacing:.12em; text-transform:uppercase; margin-bottom:20px; display:flex; align-items:center; gap:10px;
+}
+.eyebrow::before{content:'▶'; font-size:9px;}
+.hero h1{
+  font-size:clamp(40px,7vw,84px); line-height:.98; font-weight:700; letter-spacing:-.02em;
+  margin-bottom:24px;
+}
+.hero h1 .stroke{-webkit-text-stroke:1.5px var(--off); color:transparent;}
+.hero p.lede{
+  font-size:18px; line-height:1.6; color:var(--mid); max-width:560px; margin-bottom:36px;
+}
+.hero p.lede b{color:var(--off); font-weight:500;}
+.hero-actions{display:flex; gap:14px; flex-wrap:wrap; align-items:center;}
+.btn-primary{
+  background:var(--off); color:#0A0A0D; padding:15px 28px; text-decoration:none;
+  font-weight:600; font-size:14px; letter-spacing:.01em; display:inline-flex; align-items:center; gap:8px;
+  transition:background .2s, transform .2s;
+}
+.btn-primary:hover{background:var(--signal); color:#0A0A0D; transform:translateY(-2px);}
+.btn-ghost{
+  border:1px solid var(--line); color:var(--off); padding:14px 26px; text-decoration:none;
+  font-size:14px; font-family:'JetBrains Mono',monospace; transition:border-color .2s, color .2s;
+}
+.btn-ghost:hover{border-color:var(--phos); color:var(--phos);}
+
+.hero-stats{
+  display:flex; gap:0; margin-top:64px; border-top:1px solid var(--line); padding-top:24px; max-width:700px;
+}
+.stat{padding-right:40px; margin-right:40px; border-right:1px solid var(--line);}
+.stat:last-child{border-right:none;}
+.stat .num{font-family:'Space Grotesk'; font-size:28px; font-weight:700; color:var(--off);}
+.stat .lbl{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; margin-top:4px;}
+
+/* ---------- section shell ---------- */
+section{padding:120px 32px; max-width:1400px; margin:0 auto; position:relative;}
+.sec-head{display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:56px; flex-wrap:wrap; gap:20px; border-bottom:1px solid var(--line); padding-bottom:24px;}
+.sec-tag{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--signal); letter-spacing:.1em; text-transform:uppercase; margin-bottom:12px;}
+.sec-head h2{font-size:clamp(28px,4vw,46px); font-weight:700; letter-spacing:-.01em;}
+.sec-desc{color:var(--mid); max-width:400px; font-size:14.5px; line-height:1.6;}
+
+/* ---------- stack / toolchain ---------- */
+.stack-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line);}
+.stack-item{
+  background:var(--bg); padding:28px 24px; transition:background .25s;
+  display:flex; flex-direction:column; gap:10px; cursor:default;
+}
+.stack-item:hover{background:var(--bg-raised);}
+.stack-item .tag{font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em;}
+.stack-item .name{font-family:'Space Grotesk'; font-size:19px; font-weight:600;}
+.stack-item .desc{font-size:12.5px; color:var(--mid); line-height:1.5;}
+.stack-item .bar{height:2px; background:var(--line); margin-top:4px; position:relative; overflow:hidden;}
+.stack-item .bar i{position:absolute; inset:0; background:var(--phos); transform:scaleX(var(--lvl,.5)); transform-origin:left; display:block;}
+
+/* ---------- genre / clip-track showcase ---------- */
+.genre-track{display:flex; flex-direction:column; gap:1px; background:var(--line); border:1px solid var(--line);}
+.genre-row{
+  background:var(--bg); display:grid; grid-template-columns:70px 1.3fr 1.7fr 90px;
+  align-items:center; padding:26px 24px; gap:24px; transition:background .2s;
+  cursor:pointer;
+}
+.genre-row:hover{background:var(--bg-raised);}
+.genre-row .idx{font-family:'JetBrains Mono',monospace; color:var(--dim); font-size:13px;}
+.genre-row h3{font-family:'Space Grotesk'; font-size:22px; font-weight:600;}
+.genre-row .desc{color:var(--mid); font-size:13.5px; line-height:1.5;}
+.genre-row .go{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--signal); text-align:right; letter-spacing:.05em;}
+@media (max-width:800px){.genre-row{grid-template-columns:40px 1fr; grid-template-rows:auto auto auto;}
+  .genre-row .desc{grid-column:2;} .genre-row .go{grid-column:2; text-align:left;}}
+
+/* ---------- project / clip cards (drive links) ---------- */
+.clips-toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; flex-wrap:wrap; gap:12px;}
+.filter-row{display:flex; gap:8px; flex-wrap:wrap;}
+.filter-btn{
+  background:transparent; border:1px solid var(--line); color:var(--mid); padding:8px 16px;
+  font-family:'JetBrains Mono',monospace; font-size:11.5px; cursor:pointer; letter-spacing:.03em;
+  transition:all .2s;
+}
+.filter-btn.active, .filter-btn:hover{border-color:var(--phos); color:var(--phos);}
+.add-clip-btn{
+  background:var(--signal); color:#0A0A0D; border:none; padding:10px 18px; font-weight:600;
+  font-family:'JetBrains Mono',monospace; font-size:12px; cursor:pointer; letter-spacing:.02em;
+  display:flex; align-items:center; gap:8px; transition:background .2s;
+}
+.add-clip-btn:hover{background:#ff7a45;}
+
+.clips-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:20px;}
+.clip-card{
+  border:1px solid var(--line); background:var(--bg-raised); position:relative; overflow:hidden;
+  display:flex; flex-direction:column;
+}
+.clip-thumb{
+  aspect-ratio:16/9; background:
+    linear-gradient(135deg, rgba(255,90,31,.12), rgba(57,255,136,.06)),
+    repeating-linear-gradient(45deg, #16161a 0 2px, #101013 2px 4px);
+  position:relative; display:flex; align-items:center; justify-content:center;
+  border-bottom:1px solid var(--line);
+}
+.clip-thumb .play{
+  width:52px; height:52px; border:1px solid var(--off); border-radius:50%;
+  display:flex; align-items:center; justify-content:center; color:var(--off);
+  transition:all .2s; text-decoration:none; font-size:16px;
+}
+.clip-card:hover .play{background:var(--off); color:#0A0A0D; transform:scale(1.08);}
+.clip-thumb .genre-badge{
+  position:absolute; top:10px; left:10px; font-family:'JetBrains Mono',monospace; font-size:9.5px;
+  background:rgba(10,10,13,.8); border:1px solid var(--line); color:var(--phos); padding:4px 8px; text-transform:uppercase; letter-spacing:.05em;
+}
+.clip-body{padding:18px 20px 20px; display:flex; flex-direction:column; gap:10px; flex:1;}
+.clip-title{font-family:'Space Grotesk'; font-size:17px; font-weight:600;}
+.clip-meta{display:flex; gap:14px; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--dim); text-transform:uppercase; letter-spacing:.04em;}
+.clip-desc{font-size:13px; color:var(--mid); line-height:1.5; flex:1;}
+.clip-actions{display:flex; gap:8px; margin-top:6px;}
+.clip-link-btn{
+  flex:1; text-align:center; background:transparent; border:1px solid var(--line); color:var(--off);
+  padding:9px; font-size:12px; font-family:'JetBrains Mono',monospace; text-decoration:none; transition:all .2s;
+}
+.clip-link-btn:hover{border-color:var(--signal); color:var(--signal);}
+.clip-edit-btn, .clip-del-btn{
+  background:transparent; border:1px solid var(--line); color:var(--dim); width:38px;
+  cursor:pointer; font-size:13px; transition:all .2s;
+}
+.clip-edit-btn:hover{border-color:var(--phos); color:var(--phos);}
+.clip-del-btn:hover{border-color:#ff4d4d; color:#ff4d4d;}
+.empty-state{
+  grid-column:1/-1; text-align:center; padding:60px 20px; border:1px dashed var(--line); color:var(--dim);
+  font-family:'JetBrains Mono',monospace; font-size:13px;
+}
+
+/* ---------- modal ---------- */
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(10,10,13,.85); backdrop-filter:blur(4px);
+  z-index:300; display:none; align-items:center; justify-content:center; padding:20px;
+}
+.modal-overlay.active{display:flex;}
+.modal{
+  background:var(--bg-raised); border:1px solid var(--line); width:100%; max-width:480px;
+  padding:32px; position:relative;
+}
+.modal h3{font-family:'Space Grotesk'; font-size:22px; margin-bottom:6px;}
+.modal .sub{color:var(--mid); font-size:13px; margin-bottom:24px;}
+.field{margin-bottom:16px;}
+.field label{
+  display:block; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--dim);
+  text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px;
+}
+.field input, .field select, .field textarea{
+  width:100%; background:var(--bg); border:1px solid var(--line); color:var(--off);
+  padding:12px 14px; font-family:'Inter',sans-serif; font-size:14px; outline:none; transition:border-color .2s;
+}
+.field input:focus, .field select:focus, .field textarea:focus{border-color:var(--phos);}
+.field textarea{resize:vertical; min-height:70px;}
+.modal-actions{display:flex; gap:10px; margin-top:26px;}
+.modal-save{
+  flex:1; background:var(--signal); color:#0A0A0D; border:none; padding:13px; font-weight:600;
+  font-family:'JetBrains Mono',monospace; font-size:13px; cursor:pointer; transition:background .2s;
+}
+.modal-save:hover{background:#ff7a45;}
+.modal-cancel{
+  background:transparent; border:1px solid var(--line); color:var(--mid); padding:13px 20px;
+  font-family:'JetBrains Mono',monospace; font-size:13px; cursor:pointer;
+}
+.modal-cancel:hover{color:var(--off);}
+.modal-close{position:absolute; top:20px; right:20px; background:none; border:none; color:var(--dim); font-size:20px; cursor:pointer;}
+.modal-close:hover{color:var(--off);}
+.field-hint{font-size:11px; color:var(--dim); margin-top:6px; line-height:1.5;}
+
+/* ---------- process ---------- */
+.process-list{border-top:1px solid var(--line);}
+.process-item{
+  display:grid; grid-template-columns:120px 1fr 1fr; gap:32px; padding:32px 0; border-bottom:1px solid var(--line);
+  align-items:start;
+}
+.process-item .ph{font-family:'JetBrains Mono',monospace; color:var(--signal); font-size:13px;}
+.process-item h4{font-family:'Space Grotesk'; font-size:20px; margin-bottom:8px;}
+.process-item p{color:var(--mid); font-size:13.5px; line-height:1.6;}
+@media (max-width:800px){.process-item{grid-template-columns:1fr;}}
+
+/* ---------- contact ---------- */
+.contact-wrap{
+  border:1px solid var(--line); padding:64px 48px; position:relative; overflow:hidden;
+  background:radial-gradient(circle at 20% 20%, rgba(255,90,31,.06), transparent 50%);
+}
+.contact-wrap h2{font-size:clamp(30px,5vw,56px); font-weight:700; letter-spacing:-.02em; margin-bottom:18px; max-width:700px;}
+.contact-wrap p{color:var(--mid); max-width:480px; margin-bottom:36px; font-size:15px;}
+.contact-links{display:flex; gap:16px; flex-wrap:wrap;}
+.contact-links a{
+  border:1px solid var(--line); color:var(--off); text-decoration:none; padding:14px 24px;
+  font-family:'JetBrains Mono',monospace; font-size:13px; display:flex; align-items:center; gap:10px;
+  transition:all .2s;
+}
+.contact-links a:hover{border-color:var(--signal); color:var(--signal);}
+.contact-links a.primary{background:var(--off); color:#0A0A0D; border-color:var(--off);}
+.contact-links a.primary:hover{background:var(--signal); border-color:var(--signal); color:#0A0A0D;}
+
+footer{
+  border-top:1px solid var(--line); padding:32px; text-align:center;
+  font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--dim);
+  display:flex; justify-content:space-between; max-width:1400px; margin:0 auto; flex-wrap:wrap; gap:10px;
+}
+
+/* toast */
+.toast{
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(20px); z-index:400;
+  background:var(--off); color:#0A0A0D; padding:13px 22px; font-family:'JetBrains Mono',monospace;
+  font-size:12.5px; opacity:0; transition:all .3s; pointer-events:none; letter-spacing:.02em;
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+/* reveal on scroll */
+.reveal{opacity:0; transform:translateY(24px); transition:opacity .7s ease, transform .7s ease;}
+.reveal.in{opacity:1; transform:translateY(0);}
+</style>
+</head>
+<body>
+
+<div class="grain"></div>
+
+<!-- NAV -->
+<nav class="timeline-nav">
+  <div class="timeline-nav-inner">
+    <div class="brand"><span class="brand-dot"></span>RAJU<span class="mono" style="color:var(--dim); font-weight:400; font-size:11px; margin-left:6px;">/ AI VIDEO EDITOR</span></div>
+    <div class="nav-links">
+      <a href="#stack">Toolchain</a>
+      <a href="#genres">Genres</a>
+      <a href="#clips">Clips</a>
+      <a href="#process">Process</a>
+      <a href="#contact">Contact</a>
+    </div>
+    <a href="#contact" class="nav-cta">Start a project</a>
+  </div>
+  <div class="ruler"><div class="ruler-track" id="rulerTrack"></div></div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-content">
+    <div class="eyebrow">Rec // Kolkata–Rourkela, India — Open for freelance</div>
+    <h1>Cinematic <span class="stroke">footage</span><br>that starts as<br>a text prompt.</h1>
+    <p class="lede">I'm <b>Raju</b> — a video editor who works at the frontier of generative video. I take a script or a brief and take it all the way to a graded, sound-designed final cut, using <b>Veo 3.1, Kling, NanoBanana&nbsp;2</b> and <b>Premiere&nbsp;Pro / CapCut Pro</b> for everything in between.</p>
+    <div class="hero-actions">
+      <a href="#clips" class="btn-primary">View my clips ↓</a>
+      <a href="#contact" class="btn-ghost">Hire me →</a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat"><div class="num">2+ yrs</div><div class="lbl">Editing experience</div></div>
+      <div class="stat"><div class="num">1 yr</div><div class="lbl">AI-directed video</div></div>
+      <div class="stat"><div class="num">4</div><div class="lbl">Niche genres</div></div>
+      <div class="stat"><div class="num">EU / US</div><div class="lbl">Client base</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- TOOLCHAIN -->
+<section id="stack">
+  <div class="sec-head">
+    <div>
+      <div class="sec-tag">// 01 Toolchain</div>
+      <h2>The generative stack</h2>
+    </div>
+    <p class="sec-desc">Every tool below is in active weekly use — not a badge wall. This is the actual pipeline footage moves through, generation to grade.</p>
+  </div>
+  <div class="stack-grid">
+    <div class="stack-item" style="--lvl:.94">
+      <span class="tag">Image gen</span>
+      <span class="name">NanoBanana 2 / Pro</span>
+      <span class="desc">Character-consistent stills, meme-face + cinematic frame references for downstream video gen.</span>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="stack-item" style="--lvl:.9">
+      <span class="tag">Video gen</span>
+      <span class="name">Google Flow (Veo 3.1)</span>
+      <span class="desc">Primary cinematic + commercial video generation, scene-by-scene prompt direction.</span>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="stack-item" style="--lvl:.85">
+      <span class="tag">Video gen</span>
+      <span class="name">Kling 2.6 / 3.0</span>
+      <span class="desc">Motion-heavy and product/commercial shots where Kling's physics reads more natural.</span>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="stack-item" style="--lvl:.8">
+      <span class="tag">Image gen</span>
+      <span class="name">Omini Flash</span>
+      <span class="desc">Fast-iteration stills for storyboard and shot-planning before committing to full renders.</span>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="stack-item" style="--lvl:.95">
+      <span class="tag">Post / NLE</span>
+      <span class="name">Adobe Premiere Pro</span>
+      <span class="desc">Full assembly, colour grade, sound design and delivery for cinematic and long-form work.</span>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="stack-item" style="--lvl:.88">
+      <span class="tag">Post / NLE</span>
+      <span class="name">CapCut Pro</span>
+      <span class="desc">Fast-cut, meme-heavy and vertical short-form edits — captions, beat-sync, trend formats.</span>
+      <div class="bar"><i></i></div>
+    </div>
+  </div>
+</section>
+
+<!-- GENRES -->
+<section id="genres">
+  <div class="sec-head">
+    <div>
+      <div class="sec-tag">// 02 Specialization</div>
+      <h2>Genres I edit in</h2>
+    </div>
+    <p class="sec-desc">Four lanes, not a hundred. Depth in a niche reads as expertise — that's deliberate.</p>
+  </div>
+  <div class="genre-track">
+    <div class="genre-row reveal" onclick="scrollToClips('talking-head')">
+      <span class="idx mono">TH</span>
+      <h3>Talking Head Explainer</h3>
+      <p class="desc">UGC-style and presenter-led explainers, AI-voiced or human-shot, scripted for retention and clarity.</p>
+      <span class="go mono">01 →</span>
+    </div>
+    <div class="genre-row reveal" onclick="scrollToClips('2d-animation')">
+      <span class="idx mono">2D</span>
+      <h3>2D Animation Explainer</h3>
+      <p class="desc">Wojak / NPC / meme-face style narrative explainers — finance, psychology, tax, and story-driven content.</p>
+      <span class="go mono">02 →</span>
+    </div>
+    <div class="genre-row reveal" onclick="scrollToClips('cinematic')">
+      <span class="idx mono">CM</span>
+      <h3>Cinematic Commercial</h3>
+      <p class="desc">Product and brand films — aviation, luxury, lifestyle — built from full AI-generated shot sequences.</p>
+      <span class="go mono">03 →</span>
+    </div>
+    <div class="genre-row reveal" onclick="scrollToClips('shorts')">
+      <span class="idx mono">TX</span>
+      <h3>Text Animation Shorts</h3>
+      <p class="desc">High-retention YouTube Shorts and Reels — kinetic type, meme timing, built for the algorithm.</p>
+      <span class="go mono">04 →</span>
+    </div>
+  </div>
+</section>
+
+<!-- CLIPS / PROJECTS -->
+<section id="clips">
+  <div class="sec-head">
+    <div>
+      <div class="sec-tag">// 03 Reel</div>
+      <h2>Clips &amp; drive links</h2>
+    </div>
+    <p class="sec-desc">Every card links out to the actual Google Drive folder or file. Add, edit, or remove your own clips — it's saved right here in the page.</p>
+  </div>
+
+  <div class="clips-toolbar">
+    <div class="filter-row" id="filterRow">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="talking-head">Talking Head</button>
+      <button class="filter-btn" data-filter="2d-animation">2D Animation</button>
+      <button class="filter-btn" data-filter="cinematic">Cinematic</button>
+      <button class="filter-btn" data-filter="shorts">Shorts</button>
+    </div>
+    <button class="add-clip-btn" onclick="openModal()">+ Add clip</button>
+  </div>
+
+  <div class="clips-grid" id="clipsGrid"></div>
+</section>
+
+<!-- PROCESS -->
+<section id="process">
+  <div class="sec-head">
+    <div>
+      <div class="sec-tag">// 04 Workflow</div>
+      <h2>Prompt to final cut</h2>
+    </div>
+    <p class="sec-desc">The same five-stage pipeline runs under every genre above, tuned per project.</p>
+  </div>
+  <div class="process-list">
+    <div class="process-item reveal">
+      <span class="ph mono">00:00</span>
+      <h4>Brief &amp; script</h4>
+      <p>Lock the narrative, tone, and reference footage before any generation starts.</p>
+    </div>
+    <div class="process-item reveal">
+      <span class="ph mono">00:05</span>
+      <h4>Frame generation</h4>
+      <p>NanoBanana 2 / Omini Flash produce consistent character and scene stills as anchors.</p>
+    </div>
+    <div class="process-item reveal">
+      <span class="ph mono">00:12</span>
+      <h4>Video generation</h4>
+      <p>Veo 3.1 or Kling animate each shot from the anchor frames, scene by scene.</p>
+    </div>
+    <div class="process-item reveal">
+      <span class="ph mono">00:22</span>
+      <h4>Assembly &amp; grade</h4>
+      <p>Premiere Pro or CapCut Pro for cut, sound design, captions, and colour.</p>
+    </div>
+    <div class="process-item reveal">
+      <span class="ph mono">00:30</span>
+      <h4>Delivery</h4>
+      <p>Export in the platform's native spec, plus source project files on request.</p>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact">
+  <div class="contact-wrap reveal">
+    <h2>Got a video that needs to exist? Let's generate it.</h2>
+    <p>Open for freelance work with international clients — talking head explainers, 2D animation, cinematic commercials, and short-form. Paid in USD / EUR via Payoneer or Wise.</p>
+    <div class="contact-links">
+      <a href="mailto:hello@example.com" class="primary">✉ hello@example.com</a>
+      <a href="#" onclick="return false;">💬 Discord — raju#0000</a>
+      <a href="#" onclick="return false;">▶ YouTube — Lord Wojak</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>© 2026 RAJU — AI VIDEO EDITOR</span>
+  <span id="clockOut">REC 00:00:00:00</span>
+</footer>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h3 id="modalTitle">Add a clip</h3>
+    <p class="sub">Paste your Google Drive share link — set it to "Anyone with the link" so it opens for viewers.</p>
+    <div class="field">
+      <label>Title</label>
+      <input type="text" id="fTitle" placeholder="e.g. Bombardier Global 6000 — Commercial">
+    </div>
+    <div class="field">
+      <label>Genre</label>
+      <select id="fGenre">
+        <option value="talking-head">Talking Head Explainer</option>
+        <option value="2d-animation">2D Animation Explainer</option>
+        <option value="cinematic">Cinematic Commercial</option>
+        <option value="shorts">Text Animation Shorts</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Google Drive link</label>
+      <input type="url" id="fLink" placeholder="https://drive.google.com/file/d/...">
+      <div class="field-hint">Right-click the file in Drive → Share → General access → "Anyone with the link."</div>
+    </div>
+    <div class="field">
+      <label>Short description</label>
+      <textarea id="fDesc" placeholder="Client, tools used, what it demonstrates..."></textarea>
+    </div>
+    <div class="field">
+      <label>Duration (optional)</label>
+      <input type="text" id="fDur" placeholder="e.g. 0:45">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+      <button class="modal-save" onclick="saveClip()">Save clip</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= THREE.JS HERO — floating footage tiles ================= */
+(function(){
+  const canvas = document.getElementById('hero-canvas');
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let W = canvas.clientWidth, H = canvas.clientHeight;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, W/H, 0.1, 100);
+  camera.position.set(0,0,11);
+  const renderer = new THREE.WebGLRenderer({canvas, alpha:true, antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(W,H);
+
+  const group = new THREE.Group();
+  scene.add(group);
+
+  const colors = [0xFF5A1F, 0x39FF88, 0xF0EEE6, 0x54545A];
+  const tiles = [];
+  const count = window.innerWidth < 700 ? 10 : 18;
+  for(let i=0;i<count;i++){
+    const w = 1.1 + Math.random()*0.9;
+    const h = w * 0.5625;
+    const geo = new THREE.PlaneGeometry(w,h);
+    const edges = new THREE.EdgesGeometry(geo);
+    const mat = new THREE.LineBasicMaterial({color: colors[i % colors.length], transparent:true, opacity:0.55});
+    const wire = new THREE.LineSegments(edges, mat);
+
+    const fillMat = new THREE.MeshBasicMaterial({color:0x111114, transparent:true, opacity:0.55, side:THREE.DoubleSide});
+    const fill = new THREE.Mesh(geo, fillMat);
+    fill.position.z = -0.01;
+
+    const tileGroup = new THREE.Group();
+    tileGroup.add(fill);
+    tileGroup.add(wire);
+
+    const radius = 4 + Math.random()*4;
+    const theta = Math.random()*Math.PI*2;
+    const y = (Math.random()-0.5)*7;
+    tileGroup.position.set(Math.cos(theta)*radius, y, Math.sin(theta)*radius - 2);
+    tileGroup.rotation.y = -theta;
+    tileGroup.userData = {
+      baseY: tileGroup.position.y,
+      speed: 0.1 + Math.random()*0.25,
+      phase: Math.random()*Math.PI*2,
+      radius, theta, driftSpeed:(Math.random()-0.5)*0.05
+    };
+    group.add(tileGroup);
+    tiles.push(tileGroup);
+  }
+
+  let mouseX = 0, mouseY = 0;
+  window.addEventListener('mousemove', (e)=>{
+    mouseX = (e.clientX / window.innerWidth - 0.5);
+    mouseY = (e.clientY / window.innerHeight - 0.5);
+  });
+
+  let clock = new THREE.Clock();
+  function animate(){
+    requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+    tiles.forEach(tg=>{
+      const d = tg.userData;
+      if(!reduced){
+        d.theta += d.driftSpeed * 0.01;
+        tg.position.x = Math.cos(d.theta) * d.radius;
+        tg.position.z = Math.sin(d.theta) * d.radius - 2;
+        tg.position.y = d.baseY + Math.sin(t*d.speed + d.phase) * 0.4;
+        tg.rotation.y = -d.theta;
+      }
+    });
+    group.rotation.y += (mouseX*0.4 - group.rotation.y*0.4)*0.02;
+    group.rotation.x += (mouseY*0.15 - group.rotation.x*0.15)*0.02;
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', ()=>{
+    W = canvas.clientWidth; H = canvas.clientHeight;
+    camera.aspect = W/H; camera.updateProjectionMatrix();
+    renderer.setSize(W,H);
+  });
+})();
+
+/* ================= TIMECODE RULER ================= */
+(function(){
+  const track = document.getElementById('rulerTrack');
+  let html = '';
+  for(let i=0;i<20;i++){
+    const min = String(i).padStart(2,'0');
+    html += `<span>00:${min}:00:00</span>`;
+  }
+  track.innerHTML = html + html;
+})();
+
+/* live footer clock (mm counts up like a rec timer, cosmetic) */
+(function(){
+  const el = document.getElementById('clockOut');
+  const start = Date.now();
+  setInterval(()=>{
+    const s = Math.floor((Date.now()-start)/1000);
+    const hh = String(Math.floor(s/3600)).padStart(2,'0');
+    const mm = String(Math.floor((s%3600)/60)).padStart(2,'0');
+    const ss = String(s%60).padStart(2,'0');
+    el.textContent = `REC ${hh}:${mm}:${ss}:00`;
+  },1000);
+})();
+
+/* ================= SCROLL REVEAL ================= */
+(function(){
+  const els = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  },{threshold:0.15});
+  els.forEach(el=>io.observe(el));
+})();
+
+/* ================= CLIP DATA (localStorage-free, in-memory + starter data) ================= */
+const GENRE_LABELS = {
+  'talking-head':'Talking Head',
+  '2d-animation':'2D Animation',
+  'cinematic':'Cinematic',
+  'shorts':'Shorts'
+};
+
+let clips = [
+  {
+    id: cryptoId(),
+    title: 'Income Tax Explainer — NPC Style',
+    genre: '2d-animation',
+    link: 'https://drive.google.com/',
+    desc: 'NanoBanana 2 character design + full 2D animated explainer walkthrough of income tax basics, meme-face style.',
+    duration: '2:10'
+  },
+  {
+    id: cryptoId(),
+    title: 'Bombardier Global 6000 — Cinematic Promo',
+    genre: 'cinematic',
+    link: 'https://drive.google.com/',
+    desc: '12-scene private jet commercial. NanoBanana 2 stills → Kling 2.6/3.0 motion → Premiere Pro grade, for client CLFD.',
+    duration: '1:30'
+  },
+  {
+    id: cryptoId(),
+    title: 'Skeleton Sheriff — Bodycam Reaction',
+    genre: '2d-animation',
+    link: 'https://drive.google.com/',
+    desc: 'Lord Wojak channel test assignment — police bodycam reaction series, Veo 3.1 + NanoBanana 2 prompt-built.',
+    duration: '0:52'
+  },
+  {
+    id: cryptoId(),
+    title: 'UGC Talking-Head Ad — Vertical',
+    genre: 'talking-head',
+    link: 'https://drive.google.com/',
+    desc: 'Veo 3.1 generated presenter-style ad, 9:16, built from an ad-research workflow brief.',
+    duration: '0:34'
+  },
+  {
+    id: cryptoId(),
+    title: '"The Evidence Folder" — Psychology Short',
+    genre: 'shorts',
+    link: 'https://drive.google.com/',
+    desc: 'Fast-cut, anime/meme-heavy short in the BigBoxSWE style — beat-synced kinetic captions in CapCut Pro.',
+    duration: '0:58'
+  },
+  {
+    id: cryptoId(),
+    title: 'AI Tools Review — Kareem Rahma Format',
+    genre: 'talking-head',
+    link: 'https://drive.google.com/',
+    desc: 'Vertical reel replicating a viral psychology/interview reel format, edited for retention.',
+    duration: '0:41'
+  }
+];
+
+let activeFilter = 'all';
+let editingId = null;
+
+function cryptoId(){ return 'c_' + Math.random().toString(36).slice(2,10); }
+
+function renderClips(){
+  const grid = document.getElementById('clipsGrid');
+  const list = activeFilter === 'all' ? clips : clips.filter(c=>c.genre===activeFilter);
+  if(list.length === 0){
+    grid.innerHTML = `<div class="empty-state">No clips in this lane yet. Click "+ Add clip" to drop one in.</div>`;
+    return;
+  }
+  grid.innerHTML = list.map(c => `
+    <div class="clip-card reveal in" data-id="${c.id}">
+      <div class="clip-thumb">
+        <span class="genre-badge">${GENRE_LABELS[c.genre] || c.genre}</span>
+        <a href="${escapeAttr(c.link)}" target="_blank" rel="noopener noreferrer" class="play" aria-label="Play ${escapeAttr(c.title)}">▶</a>
+      </div>
+      <div class="clip-body">
+        <div class="clip-title">${escapeHtml(c.title)}</div>
+        <div class="clip-meta"><span>${GENRE_LABELS[c.genre]||''}</span>${c.duration ? `<span>${escapeHtml(c.duration)}</span>` : ''}</div>
+        <div class="clip-desc">${escapeHtml(c.desc||'')}</div>
+        <div class="clip-actions">
+          <a href="${escapeAttr(c.link)}" target="_blank" rel="noopener noreferrer" class="clip-link-btn">Open in Drive ↗</a>
+          <button class="clip-edit-btn" onclick="editClip('${c.id}')" aria-label="Edit clip">✎</button>
+          <button class="clip-del-btn" onclick="deleteClip('${c.id}')" aria-label="Delete clip">✕</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function escapeAttr(str){ return escapeHtml(str || '#'); }
+
+document.getElementById('filterRow').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.filter-btn');
+  if(!btn) return;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  activeFilter = btn.dataset.filter;
+  renderClips();
+});
+
+function scrollToClips(genre){
+  activeFilter = genre;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active', b.dataset.filter===genre));
+  renderClips();
+  document.getElementById('clips').scrollIntoView({behavior:'smooth'});
+}
+
+/* ============ MODAL ============ */
+function openModal(){
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'Add a clip';
+  document.getElementById('fTitle').value = '';
+  document.getElementById('fGenre').value = 'talking-head';
+  document.getElementById('fLink').value = '';
+  document.getElementById('fDesc').value = '';
+  document.getElementById('fDur').value = '';
+  document.getElementById('modalOverlay').classList.add('active');
+  document.getElementById('fTitle').focus();
+}
+function editClip(id){
+  const c = clips.find(x=>x.id===id);
+  if(!c) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Edit clip';
+  document.getElementById('fTitle').value = c.title;
+  document.getElementById('fGenre').value = c.genre;
+  document.getElementById('fLink').value = c.link;
+  document.getElementById('fDesc').value = c.desc || '';
+  document.getElementById('fDur').value = c.duration || '';
+  document.getElementById('modalOverlay').classList.add('active');
+  document.getElementById('fTitle').focus();
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('active');
+}
+document.getElementById('modalOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'modalOverlay') closeModal();
+});
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape') closeModal();
+});
+
+function saveClip(){
+  const title = document.getElementById('fTitle').value.trim();
+  const genre = document.getElementById('fGenre').value;
+  const link = document.getElementById('fLink').value.trim();
+  const desc = document.getElementById('fDesc').value.trim();
+  const duration = document.getElementById('fDur').value.trim();
+
+  if(!title || !link){
+    showToast('Add a title and a Drive link before saving.');
+    return;
+  }
+  if(!/^https?:\/\//i.test(link)){
+    showToast('Link should start with http:// or https://');
+    return;
+  }
+
+  if(editingId){
+    const c = clips.find(x=>x.id===editingId);
+    Object.assign(c, {title, genre, link, desc, duration});
+    showToast('Clip updated.');
+  } else {
+    clips.unshift({id:cryptoId(), title, genre, link, desc, duration});
+    showToast('Clip added.');
+  }
+  closeModal();
+  renderClips();
+}
+
+function deleteClip(id){
+  clips = clips.filter(c=>c.id!==id);
+  renderClips();
+  showToast('Clip removed.');
+}
+
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+renderClips();
+</script>
+</body>
+</html>
